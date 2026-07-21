@@ -1,0 +1,17 @@
+services:
+  postgres:
+    image: postgres:16.4-alpine
+    environment:
+      POSTGRES_DB: migration
+      POSTGRES_USER: migration
+      POSTGRES_PASSWORD: migration
+    volumes:
+      - ../fixtures/postgres/init.sql:/docker-entrypoint-initdb.d/10-fixture.sql:ro
+      - ../.artifacts/postgres:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1::5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U migration -d migration"]
+      interval: 2s
+      timeout: 3s
+      retries: 30

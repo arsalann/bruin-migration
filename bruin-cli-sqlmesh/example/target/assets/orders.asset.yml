@@ -1,0 +1,22 @@
+name: migration_target.orders
+type: duckdb.seed
+connection: target_duckdb
+description: Deterministic equivalent of the SQLMesh source orders model.
+
+parameters:
+  path: ../../fixtures/orders.csv
+
+columns:
+  - name: id
+    type: integer
+    primary_key: true
+    checks:
+      - name: not_null
+  - name: order_date
+    type: date
+    checks:
+      - name: not_null
+  - name: amount
+    type: numeric
+    checks:
+      - name: positive

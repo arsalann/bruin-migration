@@ -1,0 +1,13 @@
+test_daily_revenue:
+  model: migration_source.daily_revenue
+  inputs:
+    migration_source.orders:
+      rows:
+        - {id: 1, order_date: 2025-01-01, amount: 120.00}
+        - {id: 2, order_date: 2025-01-01, amount: 80.00}
+        - {id: 3, order_date: 2025-01-02, amount: 50.00}
+  outputs:
+    query:
+      rows:
+        - {order_date: 2025-01-01, revenue: 200.00}
+        - {order_date: 2025-01-02, revenue: 50.00}
