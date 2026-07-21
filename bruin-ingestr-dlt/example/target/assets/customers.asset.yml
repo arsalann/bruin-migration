@@ -1,0 +1,44 @@
+name: public.customers
+type: ingestr
+description: Equivalent Bruin ingestion for the dlt PostgreSQL customers resource.
+
+parameters:
+  source_connection: source_postgres
+  source_table: public.customers
+  destination: duckdb
+  destination_table: public.customers
+  incremental_strategy: merge
+  incremental_key: updated_at
+
+columns:
+  - name: id
+    type: integer
+    primary_key: true
+    checks:
+      - name: not_null
+  - name: email
+    type: varchar
+    checks:
+      - name: not_null
+  - name: plan
+    type: varchar
+    checks:
+      - name: not_null
+      - name: accepted_values
+        value: [starter, team, enterprise]
+  - name: updated_at
+    type: timestamp
+    checks:
+      - name: not_null
+
+custom_checks:
+  - name: no duplicate customer ids
+    value: 0
+    query: |
+      SELECT COUNT(*)
+      FROM (
+        SELECT id
+        FROM public.customers
+        GROUP BY id
+        HAVING COUNT(*) > 1
+      ) duplicates

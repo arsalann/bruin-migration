@@ -1,0 +1,19 @@
+name: Migration Fixture Dashboard
+description: Hand-authored DAC reference for the Metabase native-SQL dashboard.
+connection: fixture-postgres
+
+rows:
+  - widgets:
+      - name: Daily revenue
+        type: chart
+        chart: line
+        col: 12
+        sql: |
+          SELECT
+            order_date,
+            SUM(amount) AS revenue
+          FROM public.orders
+          GROUP BY order_date
+          ORDER BY order_date
+        x: {field: order_date}
+        y: {field: [revenue]}

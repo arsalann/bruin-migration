@@ -1,0 +1,14 @@
+project: sqlmesh_migration_fixture
+cache_dir: ../../.artifacts/sqlmesh-cache
+
+gateways:
+  local:
+    connection:
+      type: duckdb
+      database: .artifacts/sqlmesh_source.duckdb
+
+default_gateway: local
+
+model_defaults:
+  dialect: duckdb
+  start: 2025-01-01

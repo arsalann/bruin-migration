@@ -1,0 +1,32 @@
+# Example runtime state
+**/.artifacts/
+**/.venv/
+**/.dlt/
+**/.sqlmesh/
+
+# Local databases and generated static output
+**/*.duckdb
+**/*.duckdb.wal
+**/bruin-docs.html
+**/build/
+
+# Local configuration and credentials
+**/.bruin.yml
+**/.env
+**/.env.*
+!**/.env.example
+
+# Docker and Python artifacts
+**/docker-data/
+**/logs/*.log
+**/__pycache__/
+**/*.py[cod]
+**/.pytest_cache/
+
+
+logs/runs
+logs/*.log
+__pycache__/
+*.py[cod]
+.bruin.yml
+logs/queries

@@ -1,0 +1,7 @@
+name: sqlmesh-to-bruin-reference
+schedule: daily
+start_date: "2025-01-01"
+catchup: false
+
+default_connections:
+  duckdb: target_duckdb
