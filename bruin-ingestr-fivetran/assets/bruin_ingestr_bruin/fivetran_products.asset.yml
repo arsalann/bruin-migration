@@ -1,0 +1,27 @@
+name: bruin_ingestr_bruin.fivetran_products
+type: ingestr
+description: Incremental Cloud SQL PostgreSQL mirror of the product dimension in BigQuery.
+
+parameters:
+  version: v1.1.6
+  source_connection: gcp_postgres
+  source_table: bruin_ingestr.products
+  destination: bigquery
+  schema_contract: evolve
+
+materialization:
+  type: table
+  strategy: merge
+  incremental_key: updated_at
+
+columns:
+  - name: product_id
+    type: bigint
+    primary_key: true
+    checks:
+      - name: not_null
+      - name: unique
+  - name: updated_at
+    type: timestamp
+    checks:
+      - name: not_null

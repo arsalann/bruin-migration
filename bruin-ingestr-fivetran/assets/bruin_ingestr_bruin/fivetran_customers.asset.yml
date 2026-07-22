@@ -1,0 +1,27 @@
+name: bruin_ingestr_bruin.fivetran_customers
+type: ingestr
+description: Incremental Cloud SQL PostgreSQL mirror of the customer dimension in BigQuery.
+
+parameters:
+  version: v1.1.6
+  source_connection: gcp_postgres
+  source_table: bruin_ingestr.customers
+  destination: bigquery
+  schema_contract: evolve
+
+materialization:
+  type: table
+  strategy: merge
+  incremental_key: updated_at
+
+columns:
+  - name: customer_id
+    type: bigint
+    primary_key: true
+    checks:
+      - name: not_null
+      - name: unique
+  - name: updated_at
+    type: timestamp
+    checks:
+      - name: not_null
