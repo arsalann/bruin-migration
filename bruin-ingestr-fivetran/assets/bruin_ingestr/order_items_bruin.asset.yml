@@ -1,10 +1,7 @@
 name: bruin_ingestr.order_items_bruin
 type: ingestr
 description: Incremental Cloud SQL PostgreSQL mirror of the order-items fact table in BigQuery.
-
-depends:
-  - bruin_ingestr.orders_bruin
-  - bruin_ingestr.products_bruin
+instance: b1.4xlarge
 
 parameters:
   version: v1.1.6
