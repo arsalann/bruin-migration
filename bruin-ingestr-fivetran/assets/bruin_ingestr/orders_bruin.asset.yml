@@ -1,9 +1,9 @@
-name: bruin_ingestr_bruin.fivetran_orders
+name: bruin_ingestr.orders_bruin
 type: ingestr
 description: Incremental Cloud SQL PostgreSQL mirror of the orders fact table in BigQuery.
 
 depends:
-  - bruin_ingestr_bruin.fivetran_customers
+  - bruin_ingestr.customers_bruin
 
 parameters:
   version: v1.1.6

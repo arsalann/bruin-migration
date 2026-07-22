@@ -6,14 +6,14 @@ Status: hand-authored Cloud SQL PostgreSQL-to-BigQuery comparison pipeline.
 
 This directory contains one Bruin pipeline with exactly four ingestr assets. It reads the seeded Cloud SQL tables through the `gcp_postgres` connection and writes isolated comparison tables through the `bruin-playground-arsalan` Google Cloud Platform connection.
 
-The existing `bruin_ingestr` BigQuery dataset is managed by Fivetran and remains untouched. Bruin writes to `bruin_ingestr_bruin`, with the requested `fivetran_` prefix on each target table.
+Bruin writes its target tables to the `bruin_ingestr` BigQuery dataset, with a `_bruin` suffix on each target table.
 
 | PostgreSQL source | Rows | Columns | Primary key | Incremental key | BigQuery target |
 | --- | ---: | ---: | --- | --- | --- |
-| `bruin_ingestr.customers` | 1,000,000 | 29 | `customer_id` | `updated_at` | `bruin_ingestr_bruin.fivetran_customers` |
-| `bruin_ingestr.products` | 1,000,000 | 29 | `product_id` | `updated_at` | `bruin_ingestr_bruin.fivetran_products` |
-| `bruin_ingestr.orders` | 10,000,000 | 30 | `order_id` | `updated_at` | `bruin_ingestr_bruin.fivetran_orders` |
-| `bruin_ingestr.order_items` | 12,000,000 | 26 | `order_item_id` | `updated_at` | `bruin_ingestr_bruin.fivetran_order_items` |
+| `bruin_ingestr.customers` | 1,000,000 | 29 | `customer_id` | `updated_at` | `bruin_ingestr.customers_bruin` |
+| `bruin_ingestr.products` | 1,000,000 | 29 | `product_id` | `updated_at` | `bruin_ingestr.products_bruin` |
+| `bruin_ingestr.orders` | 10,000,000 | 30 | `order_id` | `updated_at` | `bruin_ingestr.orders_bruin` |
+| `bruin_ingestr.order_items` | 12,000,000 | 26 | `order_item_id` | `updated_at` | `bruin_ingestr.order_items_bruin` |
 
 The complete deterministic source DDL and column inventory lives in [`../seed/assets/`](../seed/assets/).
 
@@ -55,7 +55,7 @@ After the initial load, run a zero-tolerance, failure-on-difference profile agai
 for table in customers products orders order_items; do
   bruin data-diff --full --tolerance 0 --fail-if-diff \
     "gcp_postgres:bruin_ingestr.${table}" \
-    "bruin-playground-arsalan:bruin_ingestr_bruin.fivetran_${table}"
+    "bruin-playground-arsalan:bruin_ingestr.${table}_bruin"
 done
 ```
 
