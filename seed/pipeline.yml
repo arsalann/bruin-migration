@@ -1,0 +1,4 @@
+name: seed
+
+default_connections:
+  postgres: gcp_postgres

@@ -2,17 +2,18 @@
 
 Evidence-backed migration research and runnable reference implementations for moving analytics workloads to the Bruin ecosystem.
 
-The repository starts with three tracks:
+The repository includes four migration tracks:
 
-| Track | Source | Target | Reference example |
+| Track | Source | Target | Reference implementation |
 | --- | --- | --- | --- |
 | [`bruin-dac-metabase`](bruin-dac-metabase/README.md) | Metabase dashboards | DAC | Dockerized Metabase + PostgreSQL, imported and checked dashboard |
 | [`bruin-ingestr-dlt`](bruin-ingestr-dlt/README.md) | dlt pipeline | ingestr / Bruin | PostgreSQL source, dlt and Bruin loads into separate DuckDB files |
+| [`bruin-ingestr-fivetran`](bruin-ingestr-fivetran/README.md) | Fivetran PostgreSQL connector | ingestr / Bruin | Four Cloud SQL-to-BigQuery ingestr assets with isolated comparison tables |
 | [`bruin-cli-sqlmesh`](bruin-cli-sqlmesh/README.md) | SQLMesh project | Bruin CLI | DuckDB SQLMesh project and equivalent Bruin assets |
 
 ## Repository contract
 
-Every migration track is named `bruin-<target>-<source>` and follows this layout:
+Every migration track is named `bruin-<target>-<source>`. Fixture-backed tracks follow this layout:
 
 ```text
 bruin-<target>-<source>/
@@ -28,6 +29,8 @@ bruin-<target>-<source>/
 ```
 
 `source/` and `target/` are intentionally separate: the target is the reviewed, hand-authored reference. Future converters write their output into `.artifacts/` and are validated against the same fixtures and gates without replacing the reference implementation.
+
+Connection-backed operational tracks may instead keep `pipeline.yml` and `assets/` at the track root. They must keep credentials outside Git, document the external-state boundary, and use deterministic source provisioning such as the `seed` utility.
 
 ## Migration lifecycle
 
@@ -54,6 +57,10 @@ Each runnable example must provide these commands in its `example/README.md`:
 - `teardown`: remove only that example’s isolated Docker and `.artifacts/` state.
 
 Generated state must be scoped under its example’s `.artifacts/` directory. Docker examples use an explicit Compose project name and dynamically published ports, so parallel Conductor workspaces do not clash.
+
+## Utility pipelines
+
+- [`seed`](seed/README.md) creates deterministic synthetic commerce tables in an isolated PostgreSQL schema for use as ingestion-pipeline sources. Unlike the migration examples above, it targets a user-configured external database and is run on demand.
 
 ## Adding a migration track
 
