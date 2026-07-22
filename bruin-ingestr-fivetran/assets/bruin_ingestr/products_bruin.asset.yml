@@ -1,6 +1,7 @@
 name: bruin_ingestr.products_bruin
 type: ingestr
 description: Incremental Cloud SQL PostgreSQL mirror of the product dimension in BigQuery.
+instance: b1.4xlarge
 
 parameters:
   version: v1.1.6

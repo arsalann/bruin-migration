@@ -1,6 +1,7 @@
 name: bruin_ingestr.customers_bruin
 type: ingestr
 description: Incremental Cloud SQL PostgreSQL mirror of the customer dimension in BigQuery.
+instance: b1.4xlarge
 
 parameters:
   version: v1.1.6
