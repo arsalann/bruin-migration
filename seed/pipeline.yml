@@ -1,4 +1,5 @@
 name: seed
+schedule: "@daily"
 
 default_connections:
   postgres: gcp_postgres

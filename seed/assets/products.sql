@@ -2,7 +2,7 @@
 
 name: bruin_ingestr.products
 type: pg.sql
-description: One million deterministic, production-shaped synthetic product records.
+description: Twenty-five thousand deterministic, production-shaped synthetic product records per seed day.
 tags:
   - seed
 
@@ -94,9 +94,16 @@ columns:
     type: integer
 
 custom_checks:
-  - name: has exactly one million products
-    value: 1000000
-    query: SELECT COUNT(*) FROM bruin_ingestr.products
+  - name: every seeded day has twenty-five thousand products
+    value: 0
+    query: |-
+      SELECT COUNT(*)
+      FROM (
+        SELECT (created_at AT TIME ZONE 'UTC')::date AS seed_date
+        FROM bruin_ingestr.products
+        GROUP BY 1
+        HAVING COUNT(*) <> 25000
+      ) AS invalid_days
   - name: product prices inventory and timestamps are valid
     value: 0
     query: |-
@@ -148,7 +155,9 @@ CREATE TABLE IF NOT EXISTS bruin_ingestr.products (
 );
 
 BEGIN;
+{% if full_refresh %}
 TRUNCATE TABLE bruin_ingestr.products;
+{% endif %}
 
 INSERT INTO bruin_ingestr.products (
   product_id,
@@ -181,20 +190,29 @@ INSERT INTO bruin_ingestr.products (
   discontinued_at,
   row_version
 )
-WITH generated AS (
+WITH seed_days AS (
   SELECT
-    id::bigint AS product_id,
-    md5('product-' || id::text) AS digest,
-    (499 + (id::bigint * 7919) % 49501)::bigint AS unit_price_cents,
-    TIMESTAMPTZ '2020-06-01 00:00:00+00'
-      + ((id % 1825)::int * INTERVAL '1 day')
-      + ((id % 1440)::int * INTERVAL '1 minute') AS created_at
-  FROM generate_series(1, 1000000) AS ids(id)
+    seed_day::date AS seed_date,
+    (seed_day::date - DATE '2020-01-01')::bigint AS day_offset
+  FROM generate_series(
+    '{{ start_date }}'::date,
+    '{{ end_date }}'::date,
+    INTERVAL '1 day'
+  ) AS days(seed_day)
+), generated AS (
+  SELECT
+    (day_offset * 25000 + product_sequence)::bigint AS product_id,
+    md5('product-' || (day_offset * 25000 + product_sequence)::text) AS digest,
+    (499 + ((day_offset * 25000 + product_sequence)::bigint * 7919) % 49501)::bigint AS unit_price_cents,
+    (seed_date::timestamp AT TIME ZONE 'UTC')
+      + (((product_sequence * 41) % 82800)::int * INTERVAL '1 second') AS created_at
+  FROM seed_days
+  CROSS JOIN generate_series(1, 25000) AS sequences(product_sequence)
 ), shaped AS (
   SELECT
     *,
     created_at
-      + ((product_id % 180)::int * INTERVAL '1 day') AS updated_at
+      + ((product_id % 3600)::int * INTERVAL '1 second') AS updated_at
   FROM generated
 )
 SELECT
@@ -234,7 +252,8 @@ SELECT
       THEN updated_at + ((1 + product_id % 90)::int * INTERVAL '1 day')
   END AS discontinued_at,
   (1 + product_id % 20)::int AS row_version
-FROM shaped;
+FROM shaped
+ON CONFLICT (product_id) DO NOTHING;
 
 COMMIT;
 
