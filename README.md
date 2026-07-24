@@ -60,7 +60,7 @@ Generated state must be scoped under its example’s `.artifacts/` directory. Do
 
 ## Utility pipelines
 
-- [`seed`](seed/README.md) creates deterministic synthetic commerce tables in an isolated PostgreSQL schema for use as ingestion-pipeline sources. Unlike the migration examples above, it targets a user-configured external database and is run on demand.
+- [`seed`](seed/README.md) creates deterministic synthetic commerce tables in an isolated PostgreSQL schema for use as ingestion-pipeline sources. It targets a user-configured external database and appends one deterministic, interval-bounded daily dataset at a time; explicit date ranges support backfills.
 
 ## Adding a migration track
 

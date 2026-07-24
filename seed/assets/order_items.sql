@@ -2,7 +2,7 @@
 
 name: bruin_ingestr.order_items
 type: pg.sql
-description: Twelve million deterministic, production-shaped synthetic order-item records.
+description: Five hundred and twenty-five thousand deterministic, production-shaped synthetic order-item records per seed day.
 tags:
   - seed
 
@@ -101,9 +101,16 @@ columns:
     type: integer
 
 custom_checks:
-  - name: has exactly twelve million order items
-    value: 12000000
-    query: SELECT COUNT(*) FROM bruin_ingestr.order_items
+  - name: every seeded day has five hundred and twenty-five thousand order items
+    value: 0
+    query: |-
+      SELECT COUNT(*)
+      FROM (
+        SELECT (created_at AT TIME ZONE 'UTC')::date AS seed_date
+        FROM bruin_ingestr.order_items
+        GROUP BY 1
+        HAVING COUNT(*) <> 525000
+      ) AS invalid_days
   - name: every order item references an order and product
     value: 0
     query: |
@@ -187,7 +194,9 @@ CREATE TABLE IF NOT EXISTS bruin_ingestr.order_items (
 );
 
 BEGIN;
+{% if full_refresh %}
 TRUNCATE TABLE bruin_ingestr.order_items;
+{% endif %}
 
 INSERT INTO bruin_ingestr.order_items (
   order_item_id,
@@ -217,48 +226,59 @@ INSERT INTO bruin_ingestr.order_items (
   source_updated_at,
   row_version
 )
-WITH mapped AS (
+WITH seed_days AS (
   SELECT
-    id::bigint AS order_item_id,
+    seed_day::date AS seed_date,
+    (seed_day::date - DATE '2020-01-01')::bigint AS day_offset
+  FROM generate_series(
+    '{{ start_date }}'::date,
+    '{{ end_date }}'::date,
+    INTERVAL '1 day'
+  ) AS days(seed_day)
+), mapped AS (
+  SELECT
+    seed_date,
+    day_offset,
+    (day_offset * 525000 + item_sequence)::bigint AS order_item_id,
     CASE
-      WHEN id <= 4000000 THEN ((id - 1) / 2 + 1)::bigint
-      ELSE (id - 2000000)::bigint
-    END AS order_id,
+      WHEN item_sequence <= 350000 THEN ((item_sequence - 1) / 2 + 1)::bigint
+      ELSE (item_sequence - 175000)::bigint
+    END AS order_sequence,
     CASE
-      WHEN id <= 4000000 THEN ((id - 1) % 2 + 1)::int
+      WHEN item_sequence <= 350000 THEN ((item_sequence - 1) % 2 + 1)::int
       ELSE 1
     END AS line_number
-  FROM generate_series(1, 12000000) AS ids(id)
+  FROM seed_days
+  CROSS JOIN generate_series(1, 525000) AS sequences(item_sequence)
 ), generated AS (
   SELECT
     order_item_id,
-    order_id,
+    (day_offset * 350000 + order_sequence)::bigint AS order_id,
     line_number,
     md5('order-item-' || order_item_id::text) AS digest,
     (
-      1 + (
-        order_id * 104729
+      day_offset * 25000 + 1 + (
+        order_sequence * 104729
         + line_number * 7919
-      ) % 1000000
+      ) % 25000
     )::bigint AS product_id,
-    (1 + order_id % 4)::int AS quantity,
+    (1 + order_sequence % 4)::int AS quantity,
     CASE
-      WHEN order_id % 10 < 6 THEN 0
-      WHEN order_id % 10 < 8 THEN 5
-      WHEN order_id % 10 < 9 THEN 10
+      WHEN order_sequence % 10 < 6 THEN 0
+      WHEN order_sequence % 10 < 8 THEN 5
+      WHEN order_sequence % 10 < 9 THEN 10
       ELSE 15
     END AS discount_percent,
-    (ARRAY[1900, 2000, 700])[(order_id % 3)::int + 1] AS tax_rate_basis_points,
+    (ARRAY[1900, 2000, 700])[(order_sequence % 3)::int + 1] AS tax_rate_basis_points,
     CASE
-      WHEN order_id % 100 < 5 THEN 'pending'
-      WHEN order_id % 100 < 20 THEN 'paid'
-      WHEN order_id % 100 < 45 THEN 'shipped'
-      WHEN order_id % 100 < 95 THEN 'completed'
+      WHEN order_sequence % 100 < 5 THEN 'pending'
+      WHEN order_sequence % 100 < 20 THEN 'paid'
+      WHEN order_sequence % 100 < 45 THEN 'shipped'
+      WHEN order_sequence % 100 < 95 THEN 'completed'
       ELSE 'cancelled'
     END AS order_status,
-    TIMESTAMPTZ '2022-01-01 00:00:00+00'
-      + ((order_id % 1460)::int * INTERVAL '1 day')
-      + ((order_id % 1440)::int * INTERVAL '1 minute') AS created_at
+    (seed_date::timestamp AT TIME ZONE 'UTC')
+      + (((order_sequence * 43) % 82800)::int * INTERVAL '1 second') AS created_at
   FROM mapped
 ), priced AS (
   SELECT
@@ -320,24 +340,12 @@ SELECT
   END AS return_reason,
   created_at,
   created_at
-    + (CASE order_status
-        WHEN 'pending' THEN 1
-        WHEN 'paid' THEN 2
-        WHEN 'shipped' THEN 5
-        WHEN 'completed' THEN 12
-        ELSE 3
-      END * INTERVAL '1 day') AS updated_at,
+    + ((order_item_id % 3600)::int * INTERVAL '1 second') AS updated_at,
   created_at
-    + (CASE order_status
-        WHEN 'pending' THEN 1
-        WHEN 'paid' THEN 2
-        WHEN 'shipped' THEN 5
-        WHEN 'completed' THEN 12
-        ELSE 3
-      END * INTERVAL '1 day')
-    + ((order_item_id % 60)::int * INTERVAL '1 minute') AS source_updated_at,
+    + ((order_item_id % 3600)::int * INTERVAL '1 second') AS source_updated_at,
   (1 + order_item_id % 16)::int AS row_version
-FROM totals;
+FROM totals
+ON CONFLICT (order_item_id) DO NOTHING;
 
 COMMIT;
 

@@ -2,7 +2,7 @@
 
 name: bruin_ingestr.orders
 type: pg.sql
-description: Ten million deterministic, production-shaped synthetic order records.
+description: Three hundred and fifty thousand deterministic, production-shaped synthetic order records per seed day.
 tags:
   - seed
 
@@ -116,9 +116,16 @@ columns:
     type: integer
 
 custom_checks:
-  - name: has exactly ten million orders
-    value: 10000000
-    query: SELECT COUNT(*) FROM bruin_ingestr.orders
+  - name: every seeded day has three hundred and fifty thousand orders
+    value: 0
+    query: |-
+      SELECT COUNT(*)
+      FROM (
+        SELECT (ordered_at AT TIME ZONE 'UTC')::date AS seed_date
+        FROM bruin_ingestr.orders
+        GROUP BY 1
+        HAVING COUNT(*) <> 350000
+      ) AS invalid_days
   - name: every order references a customer
     value: 0
     query: |
@@ -188,7 +195,9 @@ CREATE TABLE IF NOT EXISTS bruin_ingestr.orders (
 );
 
 BEGIN;
+{% if full_refresh %}
 TRUNCATE TABLE bruin_ingestr.orders;
+{% endif %}
 
 INSERT INTO bruin_ingestr.orders (
   order_id,
@@ -222,31 +231,40 @@ INSERT INTO bruin_ingestr.orders (
   updated_at,
   row_version
 )
-WITH generated AS (
+WITH seed_days AS (
   SELECT
-    id::bigint AS order_id,
-    md5('order-' || id::text) AS digest,
-    (1 + (id::bigint * 7919) % 1000000)::bigint AS customer_id,
+    seed_day::date AS seed_date,
+    (seed_day::date - DATE '2020-01-01')::bigint AS day_offset
+  FROM generate_series(
+    '{{ start_date }}'::date,
+    '{{ end_date }}'::date,
+    INTERVAL '1 day'
+  ) AS days(seed_day)
+), generated AS (
+  SELECT
+    (day_offset * 350000 + order_sequence)::bigint AS order_id,
+    md5('order-' || (day_offset * 350000 + order_sequence)::text) AS digest,
+    (day_offset * 100000 + 1 + (order_sequence::bigint * 7919) % 100000)::bigint AS customer_id,
     CASE
-      WHEN id % 100 < 5 THEN 'pending'
-      WHEN id % 100 < 20 THEN 'paid'
-      WHEN id % 100 < 45 THEN 'shipped'
-      WHEN id % 100 < 95 THEN 'completed'
+      WHEN order_sequence % 100 < 5 THEN 'pending'
+      WHEN order_sequence % 100 < 20 THEN 'paid'
+      WHEN order_sequence % 100 < 45 THEN 'shipped'
+      WHEN order_sequence % 100 < 95 THEN 'completed'
       ELSE 'cancelled'
     END AS status,
-    TIMESTAMPTZ '2022-01-01 00:00:00+00'
-      + ((id % 1460)::int * INTERVAL '1 day')
-      + ((id % 1440)::int * INTERVAL '1 minute') AS ordered_at,
-    (1 + id % 4)::int AS quantity,
-    CASE WHEN id <= 2000000 THEN 2 ELSE 1 END::int AS item_count,
+    (seed_date::timestamp AT TIME ZONE 'UTC')
+      + (((order_sequence * 43) % 82800)::int * INTERVAL '1 second') AS ordered_at,
+    (1 + order_sequence % 4)::int AS quantity,
+    CASE WHEN order_sequence <= 175000 THEN 2 ELSE 1 END::int AS item_count,
     CASE
-      WHEN id % 10 < 6 THEN 0
-      WHEN id % 10 < 8 THEN 5
-      WHEN id % 10 < 9 THEN 10
+      WHEN order_sequence % 10 < 6 THEN 0
+      WHEN order_sequence % 10 < 8 THEN 5
+      WHEN order_sequence % 10 < 9 THEN 10
       ELSE 15
     END AS discount_percent,
-    (ARRAY[1900, 2000, 700])[(id % 3)::int + 1] AS tax_rate_basis_points
-  FROM generate_series(1, 10000000) AS ids(id)
+    (ARRAY[1900, 2000, 700])[(order_sequence % 3)::int + 1] AS tax_rate_basis_points
+  FROM seed_days
+  CROSS JOIN generate_series(1, 350000) AS sequences(order_sequence)
 ), priced AS (
   SELECT
     *,
@@ -334,10 +352,11 @@ SELECT
   shipped_at,
   delivered_at,
   cancelled_at,
-  COALESCE(delivered_at, cancelled_at, shipped_at, paid_at, ordered_at)
-    + ((order_id % 60)::int * INTERVAL '1 minute') AS updated_at,
+  ordered_at
+    + ((order_id % 3600)::int * INTERVAL '1 second') AS updated_at,
   (1 + order_id % 16)::int AS row_version
-FROM lifecycle;
+FROM lifecycle
+ON CONFLICT (order_id) DO NOTHING;
 
 COMMIT;
 

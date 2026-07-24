@@ -2,7 +2,7 @@
 
 name: bruin_ingestr.customers
 type: pg.sql
-description: One million deterministic, production-shaped synthetic customer records.
+description: One hundred thousand deterministic, production-shaped synthetic customer records per seed day.
 tags:
   - seed
 
@@ -132,9 +132,16 @@ columns:
     type: string
 
 custom_checks:
-  - name: has exactly one million customers
-    value: 1000000
-    query: SELECT COUNT(*) FROM bruin_ingestr.customers
+  - name: every seeded day has one hundred thousand customers
+    value: 0
+    query: |-
+      SELECT COUNT(*)
+      FROM (
+        SELECT (created_at AT TIME ZONE 'UTC')::date AS seed_date
+        FROM bruin_ingestr.customers
+        GROUP BY 1
+        HAVING COUNT(*) <> 100000
+      ) AS invalid_days
   - name: customer values and timestamps are valid
     value: 0
     query: |-
@@ -184,7 +191,9 @@ CREATE TABLE IF NOT EXISTS bruin_ingestr.customers (
 );
 
 BEGIN;
+{% if full_refresh %}
 TRUNCATE TABLE bruin_ingestr.customers;
+{% endif %}
 
 INSERT INTO bruin_ingestr.customers (
   customer_id,
@@ -217,22 +226,30 @@ INSERT INTO bruin_ingestr.customers (
   row_version,
   source_system
 )
-WITH generated AS (
+WITH seed_days AS (
   SELECT
-    id::bigint AS customer_id,
-    md5('customer-' || id::text) AS digest,
-    TIMESTAMPTZ '2021-01-01 00:00:00+00'
-      + ((id % 1460)::int * INTERVAL '1 day')
-      + ((id % 1440)::int * INTERVAL '1 minute') AS created_at
-  FROM generate_series(1, 1000000) AS ids(id)
+    seed_day::date AS seed_date,
+    (seed_day::date - DATE '2020-01-01')::bigint AS day_offset
+  FROM generate_series(
+    '{{ start_date }}'::date,
+    '{{ end_date }}'::date,
+    INTERVAL '1 day'
+  ) AS days(seed_day)
+), generated AS (
+  SELECT
+    (day_offset * 100000 + customer_sequence)::bigint AS customer_id,
+    md5('customer-' || (day_offset * 100000 + customer_sequence)::text) AS digest,
+    (seed_date::timestamp AT TIME ZONE 'UTC')
+      + (((customer_sequence * 37) % 82800)::int * INTERVAL '1 second') AS created_at
+  FROM seed_days
+  CROSS JOIN generate_series(1, 100000) AS sequences(customer_sequence)
 ), shaped AS (
   SELECT
     customer_id,
     digest,
     created_at,
     created_at
-      + ((customer_id % 120)::int * INTERVAL '1 day')
-      + ((customer_id % 720)::int * INTERVAL '1 minute') AS updated_at
+      + ((customer_id % 3600)::int * INTERVAL '1 second') AS updated_at
   FROM generated
 )
 SELECT
@@ -289,7 +306,8 @@ SELECT
   updated_at + ((customer_id % 30)::int * INTERVAL '1 day') AS last_login_at,
   (1 + customer_id % 12)::int AS row_version,
   (ARRAY['commerce_web', 'mobile_app', 'crm_import'])[(customer_id % 3)::int + 1] AS source_system
-FROM shaped;
+FROM shaped
+ON CONFLICT (customer_id) DO NOTHING;
 
 COMMIT;
 

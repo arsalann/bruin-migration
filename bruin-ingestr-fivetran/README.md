@@ -8,12 +8,12 @@ This directory contains one Bruin pipeline with exactly four ingestr assets. It 
 
 Bruin writes its target tables to the `bruin_ingestr` BigQuery dataset, with a `_bruin` suffix on each target table.
 
-| PostgreSQL source | Rows | Columns | Primary key | Incremental key | BigQuery target |
+| PostgreSQL source | Rows per seed day | Columns | Primary key | Incremental key | BigQuery target |
 | --- | ---: | ---: | --- | --- | --- |
-| `bruin_ingestr.customers` | 1,000,000 | 29 | `customer_id` | `updated_at` | `bruin_ingestr.customers_bruin` |
-| `bruin_ingestr.products` | 1,000,000 | 29 | `product_id` | `updated_at` | `bruin_ingestr.products_bruin` |
-| `bruin_ingestr.orders` | 10,000,000 | 30 | `order_id` | `updated_at` | `bruin_ingestr.orders_bruin` |
-| `bruin_ingestr.order_items` | 12,000,000 | 26 | `order_item_id` | `updated_at` | `bruin_ingestr.order_items_bruin` |
+| `bruin_ingestr.customers` | 100,000 | 29 | `customer_id` | `updated_at` | `bruin_ingestr.customers_bruin` |
+| `bruin_ingestr.products` | 25,000 | 29 | `product_id` | `updated_at` | `bruin_ingestr.products_bruin` |
+| `bruin_ingestr.orders` | 350,000 | 30 | `order_id` | `updated_at` | `bruin_ingestr.orders_bruin` |
+| `bruin_ingestr.order_items` | 525,000 | 26 | `order_item_id` | `updated_at` | `bruin_ingestr.order_items_bruin` |
 
 The complete deterministic source DDL and column inventory lives in [`../seed/assets/`](../seed/assets/).
 
@@ -21,7 +21,7 @@ The complete deterministic source DDL and column inventory lives in [`../seed/as
 
 - All four assets use ingestr `v1.1.6`, `schema_contract: evolve`, and incremental `merge`.
 - Physical PostgreSQL primary keys drive BigQuery upserts, and the included checks reject null or duplicate target keys.
-- Every source writer must advance `updated_at` on inserts and updates.
+- Every source writer must advance `updated_at` on inserts and updates. The seed emits 1,000,000 rows per UTC day and keeps each row's incremental timestamp inside that day.
 - `customers` and `products` can load in parallel. `orders` waits for `customers`; `order_items` waits for `orders` and `products`.
 - The pipeline has no schedule and runs only when invoked.
 - Credentials and endpoints remain in an untracked `.bruin.yml`. The current local source connection uses the Cloud SQL Auth Proxy; BigQuery uses Application Default Credentials.
@@ -59,7 +59,7 @@ for table in customers products orders order_items; do
 done
 ```
 
-Do not run the seed pipeline immediately before an incremental load: seeding truncates and rebuilds the source tables. Use a full refresh after an intentional reseed.
+Run this pipeline with the same inclusive calendar-date interval as the seed pipeline so its timestamp-based merge reads that day's rows. Normal seed runs append only missing deterministic rows and are safe before an incremental load. A seed `--full-refresh` intentionally clears the sources, so follow that operation with an ingestr full refresh.
 
 ## Migration boundary and review decisions
 

@@ -1,28 +1,29 @@
 # GCP Cloud SQL seed pipeline
 
-The `seed` pipeline creates an isolated `bruin_ingestr` schema in PostgreSQL and loads four production-shaped, relationally consistent source tables with deterministic synthetic data. It is intended to be a stable large-volume upstream fixture for ingestion-pipeline development, not production data.
+The `seed` pipeline creates an isolated `bruin_ingestr` schema in PostgreSQL and appends four production-shaped, relationally consistent source tables with deterministic synthetic data. It is intended to be a stable large-volume upstream fixture for ingestion-pipeline development, not production data.
 
 ## Inventory and scope
 
-| Object | Rows | Business columns | Dependency | Load strategy | Useful ingestion fields |
+| Object | Rows per seed day | Business columns | Dependency | Load strategy | Useful ingestion fields |
 | --- | ---: | ---: | --- | --- | --- |
-| `bruin_ingestr.customers` | 1,000,000 | 29 | none | transactional truncate/insert | `customer_id`, `updated_at`, `row_version` |
-| `bruin_ingestr.products` | 1,000,000 | 29 | none | transactional truncate/insert | `product_id`, `updated_at`, `row_version` |
-| `bruin_ingestr.orders` | 10,000,000 | 30 | customers | transactional truncate/insert | `order_id`, `customer_id`, `updated_at` |
-| `bruin_ingestr.order_items` | 12,000,000 | 26 | orders, products | transactional truncate/insert | `order_item_id`, `order_id`, `source_updated_at` |
+| `bruin_ingestr.customers` | 100,000 | 29 | none | transactional, idempotent insert | `customer_id`, `updated_at`, `row_version` |
+| `bruin_ingestr.products` | 25,000 | 29 | none | transactional, idempotent insert | `product_id`, `updated_at`, `row_version` |
+| `bruin_ingestr.orders` | 350,000 | 30 | customers | transactional, idempotent insert | `order_id`, `customer_id`, `updated_at` |
+| `bruin_ingestr.order_items` | 525,000 | 26 | orders, products | transactional, idempotent insert | `order_item_id`, `order_id`, `source_updated_at` |
 
-- Source code: four warehouse-native PostgreSQL set generators. Values are derived deterministically from row identifiers; volatile `random()` calls are not used.
+- Each daily interval produces exactly 1,000,000 rows in total. A backfill produces that volume for every calendar day in its interval, and the tables retain the accumulated history.
+- Source code: four warehouse-native PostgreSQL set generators. Values and primary keys are derived deterministically from the UTC seed date and per-day row identifier; volatile `random()` calls are not used.
 - Target: GCP Cloud SQL instance `bruin-ingestr-demo`, PostgreSQL database `postgres`, schema `bruin_ingestr`.
-- Schedule: intentionally omitted; this is an on-demand seed operation.
+- Schedule: `@daily`. A scheduler runs the preceding daily interval; local runs remain explicit.
 - Credentials: local, gitignored `.bruin.yml` connection named `gcp_postgres`; no credential is tracked.
-- Incremental state: none. Every run transactionally reloads the same complete 24-million-row fixture.
-- Validation: exact row counts, physical and metadata-level primary-key uniqueness, accepted-value checks, nonnegative amounts, timestamp ordering, referential integrity, and aggregate order/order-item monetary reconciliation.
+- Incremental state: the target tables themselves. Normal runs use `INSERT ... ON CONFLICT DO NOTHING`, so rerunning an interval is safe and does not duplicate it. `--full-refresh` is the intentional destructive reset path.
+- Validation: per-day exact row counts, physical and metadata-level primary-key uniqueness, accepted-value checks, nonnegative amounts, timestamp ordering, referential integrity, and aggregate order/order-item monetary reconciliation.
 
-This is a hand-authored reference pipeline. Bruin automates dependency ordering, execution, and checks; table shape and synthetic-data distributions are explicit human decisions. Each table is managed with explicit PostgreSQL DDL, a stable physical identity, a physical primary key, and deterministic unique indexes so it is suitable for logical-replication experiments. Relationship rules remain executable Bruin quality gates rather than foreign keys so independent fixture teardown and reload remain predictable.
+This is a hand-authored reference pipeline. Bruin automates dependency ordering, execution, interval rendering, and checks; table shape and synthetic-data distributions are explicit human decisions. Each table is managed with explicit PostgreSQL DDL, a stable physical identity, a physical primary key, and deterministic unique indexes so it is suitable for logical-replication experiments. Relationship rules remain executable Bruin quality gates rather than foreign keys so independent fixture teardown and reload remain predictable.
 
-The large datasets are generated inside PostgreSQL with `generate_series` instead of being assembled in client memory and uploaded row by row. This materially reduces client memory and network transfer for the 24-million-row rebuild. The first two million orders have two line items and the remaining eight million have one, producing 12 million order items while preserving exact aggregate monetary reconciliation.
+The assets use Bruin's built-in `start_date` and `end_date` values as an inclusive UTC calendar-date interval. They generate every day from `start_date` through `end_date` with PostgreSQL `generate_series`; this matches Bruin's daily default, which spans the beginning through the end of yesterday. `updated_at` and `source_updated_at` also fall in their seed day, so downstream timestamp-incremental ingestion can process the same interval immediately.
 
-Run the seed before attaching a CDC connector. A rerun uses `TRUNCATE` followed by a full deterministic insert and is meant to reset this disposable fixture; it is not an incremental production write pattern and would intentionally generate a large replication workload.
+The large datasets are generated inside PostgreSQL instead of being assembled in client memory and uploaded row by row. For every seed day, the first 175,000 orders have two line items and the remaining 175,000 have one, producing 525,000 order items while preserving exact aggregate monetary reconciliation. A normal rerun is an idempotent no-op for rows already seeded; it does not truncate the source tables or create a full replication workload.
 
 ## Prerequisites and connection
 
@@ -51,10 +52,35 @@ Validate the pipeline without changing the database:
 bruin validate seed
 ```
 
-Run all four assets. A single worker deliberately limits pressure on the Cloud SQL instance:
+Run one explicit daily interval. A single worker deliberately limits pressure on the Cloud SQL instance:
 
 ```bash
-bruin run seed/pipeline.yml --workers 1 --timeout 3600
+bruin run seed/pipeline.yml \
+  --start-date 2026-07-21 \
+  --end-date 2026-07-21 \
+  --workers 1 \
+  --timeout 3600
+```
+
+Backfill a date range; both dates are included, so this creates seven million rows across 2026-07-01 through 2026-07-07:
+
+```bash
+bruin run seed/pipeline.yml \
+  --start-date 2026-07-01 \
+  --end-date 2026-07-07 \
+  --workers 1 \
+  --timeout 3600
+```
+
+To replace a legacy one-time seed, explicitly reset the four seed tables and load only the supplied range. Do not use `--full-refresh` for a normal daily run or additive backfill:
+
+```bash
+bruin run seed/pipeline.yml \
+  --full-refresh \
+  --start-date 2026-07-21 \
+  --end-date 2026-07-21 \
+  --workers 1 \
+  --timeout 3600
 ```
 
 Verify the already-loaded tables. This command exits nonzero if any declared quality check fails:
@@ -76,6 +102,8 @@ bruin query \
 
 - [PostgreSQL connection and asset support](https://getbruin.com/docs/bruin/platforms/postgres)
 - [Cloud SQL Auth Proxy](https://cloud.google.com/sql/docs/postgres/connect-auth-proxy)
-- [PostgreSQL series-generating functions](https://www.postgresql.org/docs/current/functions-srf.html) and [`TRUNCATE`](https://www.postgresql.org/docs/current/sql-truncate.html)
+- [PostgreSQL series-generating functions](https://www.postgresql.org/docs/current/functions-srf.html), [`INSERT`](https://www.postgresql.org/docs/current/sql-insert.html), and [`TRUNCATE`](https://www.postgresql.org/docs/current/sql-truncate.html)
 - [Asset definitions, dependencies, and checks](https://getbruin.com/docs/bruin/assets/definition-schema.html)
+- [Bruin templating and built-in interval variables](https://getbruin.com/docs/bruin/assets/templating/templating.html)
+- [Bruin pipeline schedules](https://getbruin.com/docs/bruin/pipelines/definition.html)
 - [`.bruin.yml` configuration](https://getbruin.com/docs/bruin/secrets/bruinyml.html)
