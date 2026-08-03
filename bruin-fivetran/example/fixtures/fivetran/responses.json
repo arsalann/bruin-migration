@@ -1,0 +1,89 @@
+{
+  "expected_authorization": "Basic Zml4dHVyZS1rZXk6Zml4dHVyZS1zZWNyZXQ=",
+  "connection_pages": {
+    "first": {
+      "items": [
+        {
+          "id": "unselected_fixture",
+          "name": "unselected_fixture",
+          "service": "postgres",
+          "schema": "ignored"
+        }
+      ],
+      "next_cursor": "fixture-page-2"
+    },
+    "fixture-page-2": {
+      "items": [
+        {
+          "id": "bruin_fivetran_fixture",
+          "name": "bruin_fivetran",
+          "service": "postgres",
+          "schema": "public",
+          "group_id": "fixture_group",
+          "paused": false,
+          "sync_frequency": 60
+        }
+      ]
+    }
+  },
+  "details": {
+    "bruin_fivetran_fixture": {
+      "id": "bruin_fivetran_fixture",
+      "name": "bruin_fivetran",
+      "service": "postgres",
+      "schema": "public",
+      "group_id": "fixture_group",
+      "paused": false,
+      "sync_frequency": 60,
+      "schedule_type": "auto",
+      "status": {
+        "setup_state": "connected",
+        "sync_state": "scheduled",
+        "is_historical_sync": false
+      },
+      "config": {
+        "host": "fixture-postgres",
+        "password": "fixture-password",
+        "api_token": "fixture-token"
+      }
+    }
+  },
+  "schemas": {
+    "bruin_fivetran_fixture": {
+      "enable_new_by_default": false,
+      "schema_change_handling": "ALLOW_ALL",
+      "schemas": {
+        "public": {
+          "enabled": true,
+          "name_in_destination": "public",
+          "tables": {
+            "customers": {
+              "enabled": true,
+              "name_in_destination": "customers",
+              "sync_mode": "LIVE",
+              "columns": {
+                "id": {
+                  "enabled": true,
+                  "data_type": "integer",
+                  "primary_key": true
+                },
+                "email": {
+                  "enabled": true,
+                  "data_type": "string"
+                },
+                "plan": {
+                  "enabled": true,
+                  "data_type": "string"
+                },
+                "updated_at": {
+                  "enabled": true,
+                  "data_type": "timestamp"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

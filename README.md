@@ -2,18 +2,19 @@
 
 Evidence-backed migration research and runnable reference implementations for moving analytics workloads to the Bruin ecosystem.
 
-The repository includes four migration tracks:
+The repository includes five migration resources:
 
 | Track | Source | Target | Reference implementation |
 | --- | --- | --- | --- |
 | [`bruin-dac-metabase`](bruin-dac-metabase/README.md) | Metabase dashboards | DAC | Dockerized Metabase + PostgreSQL, imported and checked dashboard |
 | [`bruin-ingestr-dlt`](bruin-ingestr-dlt/README.md) | dlt pipeline | ingestr / Bruin | PostgreSQL source, dlt and Bruin loads into separate DuckDB files |
 | [`bruin-ingestr-fivetran`](bruin-ingestr-fivetran/README.md) | Fivetran PostgreSQL connector | ingestr / Bruin | Four Cloud SQL-to-BigQuery ingestr assets with isolated comparison tables |
+| [`bruin-fivetran`](bruin-fivetran/fivetran-bruin-prompt.md) | Fivetran connection configuration | ingestr / Bruin | Agent prompt, migration plan, read-only importer, and isolated regression fixture |
 | [`bruin-cli-sqlmesh`](bruin-cli-sqlmesh/README.md) | SQLMesh project | Bruin CLI | DuckDB SQLMesh project and equivalent Bruin assets |
 
 ## Repository contract
 
-Every migration track is named `bruin-<target>-<source>`. Fixture-backed tracks follow this layout:
+Reference implementation tracks are named `bruin-<target>-<source>`. Fixture-backed tracks follow this layout:
 
 ```text
 bruin-<target>-<source>/
