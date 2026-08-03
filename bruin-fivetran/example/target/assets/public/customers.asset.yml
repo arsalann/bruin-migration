@@ -1,0 +1,28 @@
+name: public.customers
+type: ingestr
+enabled: true
+description: Draft Fivetran migration for public.customers; review all materialization
+  and delete semantics before enabling.
+parameters:
+  version: v1
+  source_connection: source_postgres
+  source_table: public.customers
+  destination: duckdb
+  schema_contract: evolve
+materialization:
+  type: table
+  strategy: merge
+  incremental_key: updated_at
+columns:
+- name: email
+  type: varchar
+- name: id
+  type: integer
+  primary_key: true
+  checks:
+  - name: not_null
+  - name: unique
+- name: plan
+  type: varchar
+- name: updated_at
+  type: timestamp

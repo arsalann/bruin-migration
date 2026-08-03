@@ -1,0 +1,27 @@
+pipeline:
+  name: fixture_fivetran_to_bruin
+  start_date: "2025-01-01"
+  catchup: false
+
+connections:
+  source_connection: source_postgres
+  destination_connection: target_duckdb
+  destination: duckdb
+
+initial_run:
+  scope: single_table
+  approved: true
+  start_date: "2025-01-01"
+  end_date: "2025-01-02"
+  isolated_destination_approved: true
+
+tables:
+  public.customers:
+    include: true
+    target_schema: public
+    target_table: customers
+    strategy: merge
+    primary_key: [id]
+    incremental_key: updated_at
+    schema_contract: evolve
+    delete_handling: not_applicable_for_live_fixture
