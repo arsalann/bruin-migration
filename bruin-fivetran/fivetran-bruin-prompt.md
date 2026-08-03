@@ -5,9 +5,33 @@ into a new Bruin ingestr project. This is a staged, review-gated workflow, not
 an automatic cutover. Keep customer captures and generated evidence under
 `bruin-fivetran/.artifacts/`; never put credentials or source data in Git.
 
+You are a data-migration agent. Use the Bruin MCP and official Bruin
+documentation for all Bruin configuration and commands; do not guess syntax.
+Migrate exactly one Fivetran connection at a time. Ask the user whenever a
+connection, mapping, or migration decision is unclear.
+
 Read `bruin-fivetran/plan.md` first and update it after every stage. Keep
 automated findings, human decisions, unsupported behavior, and open TODOs
 separate.
+
+## Stage 0 — bootstrap the migration workspace
+
+Before importing anything:
+
+1. Verify that the Bruin CLI is installed and update it if needed.
+2. Ask the user to confirm the Fivetran connection name or ID to migrate, the
+   source PostgreSQL connection name, the destination BigQuery connection name,
+   and the pipeline name if it should differ from `bruin`.
+3. Create a repository-root `.bruin.yml` with placeholders only for generic
+   `fivetran_api_key` and `fivetran_api_secret`, the named source PostgreSQL
+   connection, and the named destination BigQuery connection. Do not request,
+   print, commit, or store real credentials.
+4. Create an empty Bruin pipeline in `bruin/`, including `pipeline.yml` and
+   `assets/`.
+
+Do not import Fivetran configuration until this setup is complete. Do not write
+destination data, enable schedules, disable Fivetran, or perform cutover work
+without the user's explicit approval.
 
 Start with this implementation instruction:
 
@@ -47,13 +71,13 @@ Read the redacted `connection.json` and `schemas.json`. Update
 `bruin-fivetran/plan.md` with the source/destination inventory, schedule/state,
 selected tables, missing metadata, compatibility gaps, and next user actions.
 
-## Stage 2 — create the Bruin project, then pause
+## Stage 2 — review Bruin connections, then pause
 
-Create a new `bruin/` project with `pipeline.yml`, `assets/`, and an untracked
-`bruin/.bruin.yml` containing source/destination connection placeholders only.
-Do not add real connection values. Explain what the user must fill in, update
-the plan, and stop. Resume only when the user explicitly says the connections
-are ready; then test both named connections and record the result.
+Review the bootstrapped `.bruin.yml` and the empty `bruin/` project. Confirm
+that it contains source/destination connection placeholders only; do not add
+real connection values. Explain what the user must fill in, update the plan,
+and stop. Resume only when the user explicitly says the connections are ready;
+then test both named connections and record the result.
 
 ## Stage 3 — draft the MVP
 
