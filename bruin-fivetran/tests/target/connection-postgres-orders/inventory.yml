@@ -1,0 +1,36 @@
+connection:
+  destination_id: destination-postgres-fixture
+  group_id: group-postgres-fixture
+  id: connection-postgres-orders
+  paused: false
+  schedule_type: auto
+  schema: analytics
+  service: postgres
+  sync_frequency: 15
+fivetran_destination:
+  group_id: group-postgres-fixture
+  id: destination-postgres-fixture
+  name: Sanitized PostgreSQL destination
+  service: postgres
+source_connection: source_postgres
+source_connection_type: postgres
+destination_connection: target_postgres
+destination_connection_type: postgres
+fivetran_schema_policy:
+  schema_change_handling: BLOCK_ALL
+  enable_new_by_default: false
+tables:
+- source_identity: public.orders
+  fivetran_target: analytics.fct_orders
+  reviewed_target: migration_v0.fct_orders
+  selected_source_columns:
+  - customer_email
+  - order_id
+  - total_cents
+  - updated_at
+  disabled_source_columns:
+  - legacy_note
+  fivetran_system_columns_not_ported:
+  - _fivetran_synced
+  source_sync_mode: LIVE
+  fivetran_replication: {}

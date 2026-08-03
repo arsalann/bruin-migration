@@ -1,0 +1,77 @@
+{
+  "connections": [
+    {
+      "destination_id": "destination-postgres-fixture",
+      "group_id": "group-postgres-fixture",
+      "id": "connection-postgres-orders",
+      "paused": false,
+      "schedule_type": "auto",
+      "schema": "analytics",
+      "service": "postgres",
+      "sync_frequency": 15
+    }
+  ],
+  "destinations": [
+    {
+      "group_id": "group-postgres-fixture",
+      "id": "destination-postgres-fixture",
+      "name": "Sanitized PostgreSQL destination",
+      "service": "postgres"
+    }
+  ],
+  "format_version": "1",
+  "normalization_version": "1",
+  "schema_configs": {
+    "connection-postgres-orders": {
+      "enable_new_by_default": false,
+      "schema_change_handling": "BLOCK_ALL",
+      "schemas": {
+        "public": {
+          "enabled": true,
+          "name_in_destination": "analytics",
+          "tables": {
+            "orders": {
+              "columns": {
+                "_fivetran_synced": {
+                  "data_type": "timestamp",
+                  "enabled": true,
+                  "name_in_destination": "_fivetran_synced"
+                },
+                "customer_email": {
+                  "data_type": "string",
+                  "enabled": true,
+                  "name_in_destination": "customer_email"
+                },
+                "legacy_note": {
+                  "data_type": "string",
+                  "enabled": false,
+                  "name_in_destination": "legacy_note"
+                },
+                "order_id": {
+                  "data_type": "bigint",
+                  "enabled": true,
+                  "is_primary_key": true,
+                  "name_in_destination": "order_id"
+                },
+                "total_cents": {
+                  "data_type": "integer",
+                  "enabled": true,
+                  "name_in_destination": "total_cents"
+                },
+                "updated_at": {
+                  "data_type": "timestamp",
+                  "enabled": true,
+                  "name_in_destination": "updated_at"
+                }
+              },
+              "enabled": true,
+              "name_in_destination": "fct_orders",
+              "sync_mode": "LIVE"
+            }
+          }
+        }
+      }
+    }
+  },
+  "snapshot_kind": "fixture"
+}

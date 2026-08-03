@@ -1,0 +1,4 @@
+interface:
+  display_name: "Migrate Fivetran to Bruin"
+  short_description: "Guide an agent-led Fivetran migration"
+  default_prompt: "Use $migrate-fivetran-to-bruin to migrate my Fivetran connection into a new Bruin project."

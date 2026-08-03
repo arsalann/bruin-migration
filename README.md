@@ -2,13 +2,14 @@
 
 Evidence-backed migration research and runnable reference implementations for moving analytics workloads to the Bruin ecosystem.
 
-The repository includes four migration tracks:
+The repository includes five migration tracks:
 
 | Track | Source | Target | Reference implementation |
 | --- | --- | --- | --- |
 | [`bruin-dac-metabase`](bruin-dac-metabase/README.md) | Metabase dashboards | DAC | Dockerized Metabase + PostgreSQL, imported and checked dashboard |
 | [`bruin-ingestr-dlt`](bruin-ingestr-dlt/README.md) | dlt pipeline | ingestr / Bruin | PostgreSQL source, dlt and Bruin loads into separate DuckDB files |
 | [`bruin-ingestr-fivetran`](bruin-ingestr-fivetran/README.md) | Fivetran PostgreSQL connector | ingestr / Bruin | Four Cloud SQL-to-BigQuery ingestr assets with isolated comparison tables |
+| [`bruin-fivetran`](bruin-fivetran/README.md) | Fivetran connection configuration | Bruin / ingestr | Agent-led, review-gated migration skill with a read-only importer and local regression fixture |
 | [`bruin-cli-sqlmesh`](bruin-cli-sqlmesh/README.md) | SQLMesh project | Bruin CLI | DuckDB SQLMesh project and equivalent Bruin assets |
 
 ## Repository contract
@@ -30,7 +31,11 @@ bruin-<target>-<source>/
 
 `source/` and `target/` are intentionally separate: the target is the reviewed, hand-authored reference. Future converters write their output into `.artifacts/` and are validated against the same fixtures and gates without replacing the reference implementation.
 
-Connection-backed operational tracks may instead keep `pipeline.yml` and `assets/` at the track root. They must keep credentials outside Git, document the external-state boundary, and use deterministic source provisioning such as the `seed` utility.
+Connection-backed operational tracks may instead keep a root-level migration
+workspace such as `fivetran/`, `bruin/`, `scripts/`, `tests/`, and `plan.md`.
+Their end-user workflow must not be nested in a fixture directory. They must
+keep credentials outside Git, document the external-state boundary, and keep
+deterministic regression fixtures separate from the user migration workflow.
 
 ## Migration lifecycle
 
@@ -49,14 +54,16 @@ Connection-backed operational tracks may instead keep `pipeline.yml` and `assets
 
 ## Common validation gates
 
-Each runnable example must provide these commands in its `example/README.md`:
+Each runnable fixture must provide these commands in its fixture README:
 
 - `bootstrap`: check prerequisites and create only local runtime state.
 - `run`: execute source and target workloads against deterministic fixtures.
 - `verify`: run the target’s native validation and compare expected outputs.
-- `teardown`: remove only that example’s isolated Docker and `.artifacts/` state.
+- `teardown`: remove only that fixture’s isolated Docker and `.artifacts/` state.
 
-Generated state must be scoped under its example’s `.artifacts/` directory. Docker examples use an explicit Compose project name and dynamically published ports, so parallel Conductor workspaces do not clash.
+Generated state must be scoped under its fixture’s `.artifacts/` directory.
+Docker fixtures use an explicit Compose project name and dynamically published
+ports, so parallel Conductor workspaces do not clash.
 
 ## Utility pipelines
 
@@ -64,8 +71,18 @@ Generated state must be scoped under its example’s `.artifacts/` directory. Do
 
 ## Adding a migration track
 
-Copy the layout above, write the research README first, and build a small source fixture that demonstrates the high-value conversion path. Pin source runtimes and Python dependencies in the example. Do not add real credentials, production exports, or generated artifacts to Git. See [`AGENTS.md`](AGENTS.md) for the full contributor rules.
+Copy the layout above unless the track needs an agent-led root workspace, write
+the research README first, and build a small source fixture that demonstrates
+the high-value conversion path. Pin source runtimes and Python dependencies in
+the fixture. Do not add real credentials, production exports, or generated
+artifacts to Git. See [`AGENTS.md`](AGENTS.md) for the full contributor rules.
 
-## Running examples
+## Running fixtures
 
-Start in the desired `example/` directory and follow its README. The examples only use local Docker, local DuckDB files, and credentials created for the fixture. They require the tools named in each README; no cloud account or production database is needed.
+For standard tracks, start in the desired `example/` directory and follow its
+README. For the agent-led Fivetran migration template, follow
+[`bruin-fivetran/README.md`](bruin-fivetran/README.md) and use
+`bruin-fivetran/tests/` only for its deterministic maintainer regression test.
+Fixtures use only local Docker, local DuckDB files, and credentials created for
+the fixture. They require the tools named in each README; no cloud account or
+production database is needed.

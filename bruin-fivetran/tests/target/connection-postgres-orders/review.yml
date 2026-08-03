@@ -1,0 +1,19 @@
+connection_id: connection-postgres-orders
+schedule_candidate:
+  fivetran_paused: false
+  fivetran_schedule_type: auto
+  fivetran_sync_frequency_minutes: 15
+  conversion: not automatic; approve an explicit Bruin cron separately
+validation_boundary:
+  strategy: consistent_snapshot
+  approved: true
+tables:
+- source_identity: public.orders
+  enabled: true
+  load_mode: merge
+  primary_keys:
+  - order_id
+  incremental_key: updated_at
+  hard_delete_strategy: ignore
+  fivetran_replication: {}
+  required_human_decisions: []

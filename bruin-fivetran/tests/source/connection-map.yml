@@ -1,0 +1,17 @@
+# Connection names only. Runtime values live in tests/.artifacts/bruin.yml.
+bruin_config: ../.artifacts/bruin.yml
+environment: default
+
+sources:
+  connection-postgres-orders: source_postgres
+
+destinations:
+  group-postgres-fixture: target_postgres
+
+# These optional mappings deliberately diverge from the Fivetran destination:
+# validation writes only to the isolated migration_v0 schema.
+tables:
+  connection-postgres-orders:
+    public.orders:
+      target_schema: migration_v0
+      target_table: fct_orders

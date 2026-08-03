@@ -1,0 +1,27 @@
+name: migration_v0.fct_orders
+type: ingestr
+enabled: true
+description: Review-gated Bruin candidate imported from Fivetran public.orders.
+parameters:
+  version: v1.1.7
+  source_connection: source_postgres
+  source_table: public.orders
+  destination: postgres
+  destination_connection: target_postgres
+  schema_contract: freeze
+  enforce_schema: true
+  sql_exclude_columns: legacy_note
+materialization:
+  type: table
+  strategy: merge
+  incremental_key: updated_at
+columns:
+- name: customer_email
+  type: string
+- name: order_id
+  type: bigint
+  primary_key: true
+- name: total_cents
+  type: integer
+- name: updated_at
+  type: timestamp

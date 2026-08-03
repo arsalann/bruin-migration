@@ -1,0 +1,28 @@
+connections:
+  connection-postgres-orders:
+    connection_preflight_completed: false
+    schema_contract: freeze
+    schema_policy_acknowledged: false
+    schedule_approved: false
+    schedule: ''
+    validation_boundary:
+      strategy: source_recheck
+      approved: false
+    tables:
+      public.orders:
+        approved: false
+        target_write_approved: false
+        target_isolated: false
+        existing_target_write_acknowledged: false
+        source_metadata_reviewed: false
+        load_mode: merge
+        primary_keys: []
+        incremental_key: ''
+        initial_snapshot:
+          start: ''
+          end: ''
+          bounds_approved: false
+        full_replace_acknowledged: false
+        hard_delete_strategy: ignore
+        hard_delete_handling_approved: false
+        delete_loss_acknowledged: false

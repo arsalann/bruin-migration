@@ -1,0 +1,30 @@
+# Reviewed fixture decisions. In a real migration, keep generated conversion
+# drafts in fivetran/.artifacts and record approved decisions in root plan.md.
+connections:
+  connection-postgres-orders:
+    connection_preflight_completed: true
+    schema_contract: freeze
+    schema_policy_acknowledged: true
+    schedule_approved: false
+    schedule: ""
+    validation_boundary:
+      strategy: consistent_snapshot
+      approved: true
+    tables:
+      public.orders:
+        approved: true
+        target_write_approved: true
+        target_isolated: true
+        existing_target_write_acknowledged: false
+        source_metadata_reviewed: true
+        load_mode: merge
+        primary_keys: [order_id]
+        incremental_key: updated_at
+        initial_snapshot:
+          start: "2025-01-01T00:00:00Z"
+          end: "2025-01-03T00:00:00Z"
+          bounds_approved: true
+        full_replace_acknowledged: false
+        hard_delete_strategy: ignore
+        hard_delete_handling_approved: true
+        delete_loss_acknowledged: true

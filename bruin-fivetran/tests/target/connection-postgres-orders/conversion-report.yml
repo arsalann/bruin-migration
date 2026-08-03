@@ -1,0 +1,12 @@
+connection_id: connection-postgres-orders
+generated: true
+issues: []
+schedule_candidate:
+  fivetran_paused: false
+  fivetran_schedule_type: auto
+  fivetran_sync_frequency_minutes: 15
+  conversion: not automatic; approve an explicit Bruin cron separately
+configuration_mismatches:
+- Fivetran schedules and private checkpoint state are not migrated automatically.
+- Fivetran system columns are not reproduced; review downstream dependencies.
+- Fivetran schema selection does not prove a complete source-column inventory.
