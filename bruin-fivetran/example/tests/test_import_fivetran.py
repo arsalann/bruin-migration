@@ -32,13 +32,18 @@ class ImportFivetranTests(unittest.TestCase):
         self.assertEqual(redacted["nested"]["token"], "[REDACTED]")
         self.assertEqual(redacted["nested"]["safe"], "ok")
 
-    def test_name_matching_can_use_connection_schema(self) -> None:
-        connection = MODULE.select_connection(
-            [{"id": "one", "schema": "bruin_fivetran"}],
+    def test_name_matching_requires_exact_connection_name(self) -> None:
+        connection = MODULE.select_connection_by_name(
+            [{"id": "one", "name": "bruin_fivetran", "schema": "other_schema"}],
             "bruin_fivetran",
-            None,
         )
         self.assertEqual(connection["id"], "one")
+
+        with self.assertRaises(MODULE.ImportError):
+            MODULE.select_connection_by_name(
+                [{"id": "one", "name": "different_name", "schema": "bruin_fivetran"}],
+                "bruin_fivetran",
+            )
 
     def test_connection_config_keeps_only_field_names(self) -> None:
         normalized = MODULE.redact(

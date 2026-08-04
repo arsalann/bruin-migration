@@ -15,6 +15,7 @@ import re
 import shutil
 import sys
 import tempfile
+import time
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -29,10 +30,13 @@ except ModuleNotFoundError as exc:  # pragma: no cover - environment setup error
 API_BASE = "https://api.fivetran.com/v1"
 MIGRATION_ROOT = Path(__file__).resolve().parents[3]
 ARTIFACT_ROOT = MIGRATION_ROOT / ".artifacts"
-EXAMPLE_ARTIFACT_ROOT = MIGRATION_ROOT / "example" / ".artifacts"
 SECRET_FIELD = re.compile(
     r"api[_-]?key|secret|password|token|authorization|private[_-]?key|"
     r"client[_-]?secret|connection[_-]?string|credential",
+    re.IGNORECASE,
+)
+NETWORK_FIELD = re.compile(
+    r"(?:^|[_-])(?:host(?:name)?|endpoint|url|uri|address|port)(?:[_-]|$)",
     re.IGNORECASE,
 )
 ENV_TOKEN = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}|\$([A-Za-z_][A-Za-z0-9_]*)")
@@ -49,19 +53,21 @@ def fail(message: str) -> None:
     raise ImportError(message)
 
 
-def artifact_roots() -> tuple[Path, Path]:
-    return ARTIFACT_ROOT.resolve(), EXAMPLE_ARTIFACT_ROOT.resolve()
+def artifact_roots() -> tuple[Path, ...]:
+    return (ARTIFACT_ROOT.resolve(),)
 
 
 def require_artifact_path(path: Path) -> Path:
     resolved = path.expanduser().resolve()
     for root in artifact_roots():
         try:
-            resolved.relative_to(root)
+            relative = resolved.relative_to(root)
+            if len(relative.parts) < 2:
+                fail("output must name one capture directory at least two levels below an artifact root")
             return resolved
         except ValueError:
             pass
-    fail(f"output must be below {ARTIFACT_ROOT} or {EXAMPLE_ARTIFACT_ROOT}")
+    fail(f"output must be below {ARTIFACT_ROOT}")
 
 
 def load_config(path: Path, environment_name: str | None) -> dict[str, Any]:
@@ -118,27 +124,36 @@ def fivetran_authorization(config_path: Path, environment_name: str | None) -> s
     return f"Basic {token}"
 
 
-def get_json(base_url: str, authorization: str, endpoint: str, timeout: float, query: dict[str, str] | None = None) -> dict[str, Any]:
-    url = f"{base_url.rstrip('/')}/{endpoint.lstrip('/')}"
+def get_json(authorization: str, endpoint: str, label: str, timeout: float, query: dict[str, str] | None = None) -> dict[str, Any]:
+    """Fetch one Fivetran resource without placing identifiers in errors."""
+
+    url = f"{API_BASE.rstrip('/')}/{endpoint.lstrip('/')}"
     if query:
         url = f"{url}?{parse.urlencode(query)}"
-    try:
-        with request.urlopen(
-            request.Request(
-                url,
-                headers={"Authorization": authorization, "Accept": "application/json;version=2"},
-                method="GET",
-            ),
-            timeout=timeout,
-        ) as response:
-            result = json.loads(response.read().decode("utf-8"))
-    except error.HTTPError as exc:
-        fail(f"Fivetran GET {endpoint} failed with HTTP {exc.code}")
-    except (error.URLError, TimeoutError, json.JSONDecodeError) as exc:
-        fail(f"Fivetran GET {endpoint} failed: {type(exc).__name__}")
-    if not isinstance(result, dict):
-        fail(f"Fivetran GET {endpoint} returned invalid JSON")
-    return result
+    for attempt in range(3):
+        try:
+            with request.urlopen(
+                request.Request(
+                    url,
+                    headers={"Authorization": authorization, "Accept": "application/json;version=2"},
+                    method="GET",
+                ),
+                timeout=timeout,
+            ) as response:
+                result = json.loads(response.read().decode("utf-8"))
+        except error.HTTPError as exc:
+            if exc.code in {429, 500, 502, 503, 504} and attempt < 2:
+                retry_after = exc.headers.get("Retry-After") if exc.headers else None
+                delay = min(float(retry_after), 10.0) if retry_after and retry_after.isdigit() else attempt + 1
+                time.sleep(delay)
+                continue
+            fail(f"Fivetran GET {label} failed with HTTP {exc.code}")
+        except (error.URLError, TimeoutError, json.JSONDecodeError) as exc:
+            fail(f"Fivetran GET {label} failed: {type(exc).__name__}")
+        if not isinstance(result, dict):
+            fail(f"Fivetran GET {label} returned invalid JSON")
+        return result
+    fail(f"Fivetran GET {label} exhausted retry attempts")
 
 
 def data_object(payload: dict[str, Any], endpoint: str) -> dict[str, Any]:
@@ -148,14 +163,14 @@ def data_object(payload: dict[str, Any], endpoint: str) -> dict[str, Any]:
     return data
 
 
-def list_connections(base_url: str, authorization: str, timeout: float) -> list[dict[str, Any]]:
+def list_connections(authorization: str, timeout: float) -> list[dict[str, Any]]:
     connections: list[dict[str, Any]] = []
     cursor: str | None = None
     for _ in range(100):
         query = {"limit": "1000"}
         if cursor:
             query["cursor"] = cursor
-        data = get_json(base_url, authorization, "connections", timeout, query).get("data")
+        data = get_json(authorization, "connections", "connections list", timeout, query).get("data")
         if isinstance(data, dict):
             items, cursor = data.get("items", []), data.get("next_cursor")
         elif isinstance(data, list):
@@ -172,19 +187,11 @@ def list_connections(base_url: str, authorization: str, timeout: float) -> list[
     fail("Fivetran pagination exceeded 100 pages")
 
 
-def select_connection(connections: list[dict[str, Any]], name: str | None, connection_id: str | None) -> dict[str, Any]:
-    if connection_id:
-        matches = [item for item in connections if item.get("id") == connection_id]
-    else:
-        matches = [
-            item
-            for item in connections
-            if any(item.get(field) == name for field in ("name", "schema", "id"))
-        ]
+def select_connection_by_name(connections: list[dict[str, Any]], name: str) -> dict[str, Any]:
+    matches = [item for item in connections if item.get("name") == name]
     ids = {str(item.get("id")) for item in matches}
     if len(ids) != 1:
-        selected = connection_id or name
-        fail(f"expected one Fivetran connection matching {selected!r}, found {len(ids)}")
+        fail(f"expected exactly one Fivetran connection name match, found {len(ids)}")
     return matches[0]
 
 
@@ -196,7 +203,8 @@ def redact(value: Any) -> Any:
     result: dict[str, Any] = {}
     for key, nested in value.items():
         key = str(key)
-        if SECRET_FIELD.search(key):
+        normalized_key = re.sub(r"(?<!^)(?=[A-Z])", "_", key)
+        if SECRET_FIELD.search(key) or NETWORK_FIELD.search(normalized_key):
             result[key] = "[REDACTED]"
         elif key == "config" and isinstance(nested, dict):
             result[key] = {"redacted": True, "field_names": sorted(map(str, nested))}
@@ -218,8 +226,6 @@ def write_capture(destination: Path, connection: dict[str, Any], schemas: dict[s
     if destination.exists():
         if not replace:
             fail(f"capture directory exists: {destination}; use --replace to replace it")
-        if destination in artifact_roots():
-            fail("refusing to replace an artifact root")
         shutil.rmtree(destination)
     destination.parent.mkdir(parents=True, exist_ok=True)
     temporary = Path(tempfile.mkdtemp(prefix=f".{destination.name}.", dir=destination.parent))
@@ -234,16 +240,21 @@ def write_capture(destination: Path, connection: dict[str, Any], schemas: dict[s
 
 def run(args: argparse.Namespace) -> None:
     authorization = fivetran_authorization(Path(args.config_file), args.environment)
-    selected = select_connection(
-        list_connections(args.api_base, authorization, args.timeout),
-        args.connector_name,
-        args.connector_id,
-    )
-    connection_id = selected.get("id")
+    if args.replace and not args.output_dir:
+        fail("--replace requires an explicit capture directory")
+    if args.connector_id:
+        connection_id = args.connector_id
+        selected: dict[str, Any] = {"id": connection_id}
+    else:
+        if not args.connector_name:
+            fail("a Fivetran connector name or ID is required")
+        selected = select_connection_by_name(list_connections(authorization, args.timeout), args.connector_name)
+        connection_id = selected.get("id")
     if not isinstance(connection_id, str) or not connection_id:
         fail("selected connection has no ID")
-    detail = data_object(get_json(args.api_base, authorization, f"connections/{connection_id}", args.timeout), "connection details")
-    schemas = data_object(get_json(args.api_base, authorization, f"connections/{connection_id}/schemas", args.timeout), "connection schemas")
+    connection_path = parse.quote(connection_id, safe="")
+    detail = data_object(get_json(authorization, f"connections/{connection_path}", "connection details", args.timeout), "connection details")
+    schemas = data_object(get_json(authorization, f"connections/{connection_path}/schemas", "connection schemas", args.timeout), "connection schemas")
     connection = {**selected, **detail}
     destination = capture_directory(args, connection)
     write_capture(destination, connection, schemas, args.replace)
@@ -255,9 +266,8 @@ def parser() -> argparse.ArgumentParser:
     parsed.add_argument("--config-file", required=True)
     parsed.add_argument("--environment")
     selected = parsed.add_mutually_exclusive_group(required=True)
-    selected.add_argument("--connector-name", help="exact Fivetran connection name, schema, or ID")
+    selected.add_argument("--connector-name", help="exact Fivetran connection name")
     selected.add_argument("--connector-id", help="exact Fivetran connection ID")
-    parsed.add_argument("--api-base", default=API_BASE)
     parsed.add_argument("--timeout", type=float, default=20.0)
     parsed.add_argument("--output-dir", help="artifact directory for this capture")
     parsed.add_argument("--replace", action="store_true")
