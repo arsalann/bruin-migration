@@ -7,7 +7,7 @@ The repository includes five migration resources:
 | Track | Source | Target | Reference implementation |
 | --- | --- | --- | --- |
 | [`bruin-dac-metabase`](bruin-dac-metabase/README.md) | Metabase dashboards | DAC | Dockerized Metabase + PostgreSQL, imported and checked dashboard |
-| [`bruin-ingestr-dlt`](bruin-ingestr-dlt/README.md) | dlt pipeline | ingestr / Bruin | PostgreSQL source, dlt and Bruin loads into separate DuckDB files |
+| [`bruin-dlt`](bruin-dlt/README.md) | dlt pipeline configuration | ingestr / Bruin | Agent prompt, migration plan, credential converter, and a 1M-row PostgreSQL-to-ClickHouse fixture |
 | [`bruin-ingestr-fivetran`](bruin-ingestr-fivetran/README.md) | Fivetran PostgreSQL connector | ingestr / Bruin | Four Cloud SQL-to-BigQuery ingestr assets with isolated comparison tables |
 | [`bruin-fivetran`](bruin-fivetran/fivetran-bruin-prompt.md) | Fivetran connection configuration | ingestr / Bruin | Agent prompt, migration plan, read-only importer, and isolated regression fixture |
 | [`bruin-cli-sqlmesh`](bruin-cli-sqlmesh/README.md) | SQLMesh project | Bruin CLI | DuckDB SQLMesh project and equivalent Bruin assets |

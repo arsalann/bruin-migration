@@ -1,0 +1,47 @@
+# Migrated from the dlt resource `order_events` of pipeline dlt_commerce_clickhouse.
+# dlt: write_disposition="append",
+#      incremental=dlt.sources.incremental("event_ts", initial_value=2025-01-01).
+name: bruin_v0.order_events
+type: ingestr
+description: >-
+  Insert-only load of public.order_events, migrated from a dlt append resource.
+  Append has no key to deduplicate on, so every approved run window must be
+  disjoint from windows already loaded. The unique check on event_id is the
+  regression guard for that.
+
+parameters:
+  source_connection: dlt_source_postgres
+  source_table: public.order_events
+  destination: clickhouse
+  schema_contract: evolve
+
+materialization:
+  type: table
+  strategy: append
+  incremental_key: event_ts
+
+columns:
+  - name: event_id
+    type: bigint
+    primary_key: true
+    description: >-
+      dlt carried a primary_key hint that append ignores. It is kept here as
+      declared metadata and as the duplicate-detection key for the checks below.
+    checks:
+      - name: not_null
+      - name: unique
+  - name: order_id
+    type: bigint
+    checks:
+      - name: not_null
+  - name: event_type
+    type: varchar
+    checks:
+      - name: not_null
+      - name: accepted_values
+        value: [created, payment_authorized, fulfilled, refunded]
+  - name: event_ts
+    type: timestamp
+    description: dlt incremental cursor_path, mapped to the ingestr incremental key.
+    checks:
+      - name: not_null

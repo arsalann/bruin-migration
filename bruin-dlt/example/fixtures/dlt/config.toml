@@ -1,0 +1,13 @@
+# Non-secret dlt configuration for the source fixture pipeline.
+# The bootstrap step copies this file to .artifacts/dlt-project/.dlt/config.toml.
+# This is the file a migration agent is expected to read directly.
+
+[runtime]
+log_level = "WARNING"
+
+[sources.sql_database]
+chunk_size = 50000
+backend = "pyarrow"
+
+[destination.clickhouse]
+dataset_table_separator = "___"
