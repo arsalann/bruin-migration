@@ -1,0 +1,49 @@
+# Migrated from the dlt resource `customers` of pipeline dlt_commerce_clickhouse.
+# dlt: write_disposition="replace", primary_key="customer_id", no incremental cursor.
+name: bruin_v0.customers
+type: ingestr
+description: >-
+  Full reload of public.customers, migrated from a dlt replace resource.
+  dlt wrote migration.dlt_analytics___customers; this asset writes
+  bruin_v0.customers, so downstream queries must be repointed.
+
+parameters:
+  source_connection: dlt_source_postgres
+  source_table: public.customers
+  destination: clickhouse
+  schema_contract: evolve
+
+materialization:
+  type: table
+  strategy: create+replace
+
+columns:
+  - name: customer_id
+    type: bigint
+    primary_key: true
+    description: dlt primary_key hint; no incremental cursor existed on this resource.
+    checks:
+      - name: not_null
+      - name: unique
+  - name: email
+    type: varchar
+    checks:
+      - name: not_null
+  - name: plan
+    type: varchar
+    checks:
+      - name: not_null
+      - name: accepted_values
+        value: [starter, team, enterprise]
+  - name: country
+    type: varchar
+    checks:
+      - name: not_null
+  - name: signup_date
+    type: date
+    checks:
+      - name: not_null
+  - name: updated_at
+    type: timestamp
+    checks:
+      - name: not_null

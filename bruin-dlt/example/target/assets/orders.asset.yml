@@ -1,0 +1,53 @@
+# Migrated from the dlt resource `orders` of pipeline dlt_commerce_clickhouse.
+# dlt: write_disposition="merge", primary_key="order_id",
+#      incremental=dlt.sources.incremental("updated_at", initial_value=2025-01-01).
+name: bruin_v0.orders
+type: ingestr
+description: >-
+  Incremental upsert of public.orders, migrated from a dlt merge resource.
+  dlt's cursor state does not transfer: the load window comes from the Bruin run
+  interval, so a historical load needs explicit --start-date and --end-date.
+
+parameters:
+  source_connection: dlt_source_postgres
+  source_table: public.orders
+  destination: clickhouse
+  schema_contract: evolve
+
+materialization:
+  type: table
+  strategy: merge
+  incremental_key: updated_at
+
+columns:
+  - name: order_id
+    type: bigint
+    primary_key: true
+    description: dlt primary_key hint; required for an ingestr merge.
+    checks:
+      - name: not_null
+      - name: unique
+  - name: customer_id
+    type: bigint
+    checks:
+      - name: not_null
+  - name: status
+    type: varchar
+    checks:
+      - name: not_null
+      - name: accepted_values
+        value: [pending, paid, shipped, cancelled]
+  - name: amount_cents
+    type: bigint
+    checks:
+      - name: not_null
+      - name: positive
+  - name: created_at
+    type: timestamp
+    checks:
+      - name: not_null
+  - name: updated_at
+    type: timestamp
+    description: dlt incremental cursor_path, mapped to the ingestr incremental key.
+    checks:
+      - name: not_null

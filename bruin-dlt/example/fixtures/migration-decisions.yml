@@ -1,0 +1,107 @@
+# Reviewed migration decisions for the fixture.
+#
+# The runtime workflow pauses in Stage 2 and Stage 4 and asks a human for these
+# answers. The fixture cannot pause, so the answers are recorded here once,
+# reviewed in Git, and asserted against the hand-authored target reference by
+# scripts/assert_target_matches_decisions.py.
+
+pipeline:
+  name: dlt_commerce_to_bruin
+  start_date: "2025-01-01"
+  catchup: false
+
+connections:
+  source_connection: dlt_source_postgres
+  destination_connection: dlt_target_clickhouse
+  destination: clickhouse
+
+dlt_source:
+  project_dir: .artifacts/dlt-project
+  pipeline_name: dlt_commerce_clickhouse
+  dataset_name: dlt_analytics
+  dataset_table_separator: "___"
+  destination_database: migration
+
+initial_run:
+  scope: all_three_resources
+  approved: true
+  start_date: "2025-01-01"
+  end_date: "2025-03-31"
+  isolated_destination_approved: true
+  isolated_destination_database: bruin_v0
+
+incremental_run:
+  approved: true
+  start_date: "2025-04-01"
+  end_date: "2025-04-02"
+  append_window_overlaps_loaded_window: false
+
+resources:
+  customers:
+    include: true
+    asset_type: ingestr
+    dlt_write_disposition: replace
+    dlt_incremental_cursor: null
+    dlt_primary_key: [customer_id]
+    source_table: public.customers
+    target_table: bruin_v0.customers
+    strategy: create+replace
+    incremental_key: null
+    primary_key: [customer_id]
+    schema_contract: evolve
+
+  orders:
+    include: true
+    asset_type: ingestr
+    dlt_write_disposition: merge
+    dlt_incremental_cursor: updated_at
+    dlt_primary_key: [order_id]
+    source_table: public.orders
+    target_table: bruin_v0.orders
+    strategy: merge
+    incremental_key: updated_at
+    primary_key: [order_id]
+    schema_contract: evolve
+
+  order_events:
+    include: true
+    asset_type: ingestr
+    dlt_write_disposition: append
+    dlt_incremental_cursor: event_ts
+    dlt_primary_key: [event_id]
+    source_table: public.order_events
+    target_table: bruin_v0.order_events
+    strategy: append
+    incremental_key: event_ts
+    primary_key: [event_id]
+    schema_contract: evolve
+
+  # The custom-API resource. dlt pipeline dlt_pokeapi, dataset dlt_api.
+  # A hand-rolled paginator plus add_map transforms cannot become a declarative
+  # ingestr asset, and https://pokeapi.co has no ingestr connector, so the
+  # reviewed decision is a Bruin Python asset.
+  pokemon:
+    include: true
+    asset_type: python
+    port_reason: custom_paginator_and_row_transforms
+    ingestr_connector_available: false
+    dlt_pipeline_name: dlt_pokeapi
+    dlt_dataset_name: dlt_api
+    dlt_write_disposition: merge
+    dlt_incremental_cursor: null
+    dlt_primary_key: [pokemon_id]
+    source_table: "https://pokeapi.co/api/v2/pokemon"
+    target_table: bruin_v0.pokemon
+    strategy: merge
+    incremental_key: null
+    primary_key: [pokemon_id]
+    schema_contract: null
+    dropped_columns: [url]
+
+accepted_differences:
+  - ingestr adds _ingestr_loaded_at to every target table; it is excluded from
+    common-column parity.
+  - dlt writes migration.dlt_analytics___<table>; Bruin writes bruin_v0.<table>.
+    The destination naming change is accepted and recorded.
+  - bruin data-diff cannot summarize ClickHouse in CLI v0.11.722, so the diff
+    gate runs over DuckDB comparison projections of the same rows.

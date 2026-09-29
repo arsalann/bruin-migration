@@ -1,0 +1,6 @@
+# Dependencies for the Bruin Python asset in this directory. Bruin walks upward
+# from the asset file to find this, so it must sit beside the asset rather than
+# at the example root, where the fixture's own dlt dependencies live.
+pandas==2.2.3
+pyarrow==18.1.0
+requests==2.32.3
